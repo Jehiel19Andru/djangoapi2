@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+.vscode/
+
+# Entorno Virtual (CRÍTICO)
+venv/
+env/
+/bin/
+/include/
+/lib/
+/share/
+
+# Django y Base de Datos (CRÍTICO)
+# La base de datos local SQLite NO debe subirse
+db.sqlite3
+/media/
+
+# Archivos de Datos Grandes (¡CRÍTICO!)
+# Si tu dataset es de 1 GB, necesitas ignorar el archivo original
+# Render lo descargará o tú lo subirás por separado si es necesario.
+datasets/TotalFeatures-ISCXFlowMeter.csv 
+
+# Modelos (OPCIONAL: Si los generas al iniciar, ignóralos)
+# Si tu modelo es grande, es mejor que se guarde después de la compilación.
+modelos/
+
+# 🛑 EXCLUSIÓN CRÍTICA DE ARCHIVOS GRANDES Y GENERADOS
+static/images/*.png
+modelos/*.joblib

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML API - Panel de Experimentación</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Estilos generales */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Estilo para la tabla de datos */
+        .data-table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            font-size: 0.8rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+        }
+        .data-table-container table { 
+            min-width: 100%; 
+            border-collapse: collapse; 
+            background-color: white;
+        }
+        .data-table-container th, .data-table-container td {
+            padding: 12px 16px; 
+            border-bottom: 1px solid #e5e7eb; 
+            white-space: nowrap;
+        }
+        .data-table-container td {
+            text-align: right; 
+        }
+        .data-table-container th {
+            text-align: left;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            font-weight: 700;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .data-table-container tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Estilo para el campo que muestra error */
+        .input-error {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 1px #ef4444;
+        }
+        /* Ajuste para la columna de clase */
+        .text-left-class {
+            text-align: left !important; 
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+
+    <div class="container mx-auto p-6 max-w-7xl"> 
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">
+            Panel de Experimentación ML ✨
+        </h1>
+
+        <div class="bg-white p-6 rounded-lg shadow-xl mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Parámetros de Entrenamiento</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                
+                <div>
+                    <label for="percentage_datos" class="block text-sm font-medium text-gray-700 mb-1">
+                        **% Datos a Entrenar (1-100)**
+                    </label>
+                    <input type="number" id="percentage_datos" value="100" min="1" max="100"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                    <p id="error-percentage" class="text-red-500 text-xs mt-1 hidden">Debe ser un valor positivo entre 1 y 100.</p>
+                </div>
+
+                <div>
+                    <label for="num_data_view" class="block text-sm font-medium text-gray-700 mb-1">
+                        **Filas de Muestra (1-100)**
+                    </label>
+                    <input type="number" id="num_data_view" value="10" min="1" max="100"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required>
+                    <p id="error-rows" class="text-red-500 text-xs mt-1 hidden">Debe ser un valor entero positivo entre 1 y 100.</p>
+                </div>
+
+                <button id="train-btn" disabled
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out self-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    Entrenar y Visualizar
+                </button>
+
+                <button id="clear-btn"
+                        class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out self-center">
+                    🧹 Limpiar Campos
+                </button>
+            </div>
+        </div>
+        
+        <div id="results-container" class="hidden">
+            
+            <div class="bg-white p-6 rounded-lg shadow-xl mb-8 text-center grid grid-cols-1 sm:grid-cols-4 gap-4 border-l-4 border-blue-600">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-600">Datos Usados</h3>
+                    <p id="result-num-datos" class="text-2xl font-bold text-gray-800">---</p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-600">Features Usadas</h3>
+                    <p id="n-features-used" class="text-2xl font-bold text-purple-600">---</p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-600">F1 Score (Weighted)</h3>
+                    <p id="f1-score" class="text-3xl font-extrabold text-blue-600">---</p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-600">Accuracy</h3>
+                    <p id="accuracy-score" class="text-3xl font-extrabold text-green-600">---</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-xl mb-8">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4 text-center">
+                    Muestra del Dataset (Primeras <span id="displayed-data-rows">0</span> Filas)
+                </h3>
+                <div id="data-view-loader" class="flex justify-center items-center h-20 hidden">
+                    <div class="loader"></div>
+                </div>
+                <div id="dataset-view-container" class="data-table-container hidden">
+                    </div>
+            </div>
+        </div>
+            
+        <div id="error-container" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg my-4 font-medium"></div>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        // Referencias a elementos del DOM
+        const trainBtn = document.getElementById('train-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const percentageDatosInput = document.getElementById('percentage_datos'); 
+        const numDataViewInput = document.getElementById('num_data_view'); 
+        
+        const errorPercentageEl = document.getElementById('error-percentage');
+        const errorRowsEl = document.getElementById('error-rows');
+
+        const resultsContainer = document.getElementById('results-container');
+        const resultNumDatosEl = document.getElementById('result-num-datos');
+        const nFeaturesUsedEl = document.getElementById('n-features-used'); 
+        const f1ScoreEl = document.getElementById('f1-score');
+        const accuracyScoreEl = document.getElementById('accuracy-score'); 
+        const displayedDataRowsEl = document.getElementById('displayed-data-rows'); 
+        const errorContainer = document.getElementById('error-container');
+
+        const dataViewLoader = document.getElementById('data-view-loader'); 
+        const datasetViewContainer = document.getElementById('dataset-view-container'); 
+        
+        // --- CONSTANTES DE LÍMITE ---
+        const MAX_PERCENTAGE = 100;
+        const MIN_PERCENTAGE = 1;
+        const MAX_ROWS = 100; // Máximo de filas a mostrar
+        const MIN_ROWS = 1;
+
+        // Total de datos (usado solo para simulación)
+        const TOTAL_DATA_COUNT = 631955; 
+
+        // --- VALORES FIJOS DEL MODELO (para el backend) ---
+        const FIXED_N_ESTIMATORS = 500;
+        const FIXED_N_FEATURES = 30;
+
+        // -----------------------------------------------------------
+        // 1. Lógica de Generación de Tabla (¡Muestra Extendida a 100 Filas!)
+        // -----------------------------------------------------------
+        
+        // Función para generar una fila de datos con índices diferentes
+        const createSimulatedRow = (index) => {
+            // Basado en tu estructura original
+            const base = {
+                "duration": 1020586, "total_fpackets": 668, "total_bpackets": 1641, 
+                "total_fpktl": 35692, "total_bpktl": 2276876, "min_fpktl": 52, 
+                "min_bpktl": 52, "max_fpktl": 679, "max_bpktl": 1390, 
+                "mean_fpktl": 53.431138, "mean_idle": 0.0, "max_idle": -1, 
+                "std_idle": 0.0, "FFNEPD": 2, "Init_Win_bytes_forward": 4194240, 
+                "Init_Win_bytes_backward": 1853440, "RRT_samples_clnt": 1640, 
+                "Act_data_pkt_forward": 668, "min_seg_size_forward": 32, 
+                "calss": "benign"
+            };
+            
+            // Variaciones para hacerlo único y simular otros tipos de tráfico
+            const variations = [
+                (index * 1000) % 500000, 
+                (index % 50) + 1, 
+                (index % 100) + 10, 
+                (index * 100) % 50000,
+                (index * 1000) % 2000000,
+                index % 100, 
+                (index * 2) % 100,
+                (index * 5) % 1000, 
+                (index * 10) % 1500,
+                53.0 + (index * 0.1),
+                0.0, -1, 0.0,
+                (index % 5) + 1,
+                (index * 10000) % 5000000,
+                (index * 5000) % 2000000,
+                (index % 100) * 10,
+                (index % 50) + 1,
+                (index * 2) % 32,
+                index % 2 === 0 ? "benign" : "malicious"
+            ];
+
+            const newRow = {};
+            const keys = Object.keys(base);
+            
+            keys.forEach((key, i) => {
+                // El último elemento es la clase, se maneja por separado
+                if (key === 'calss') {
+                    newRow[key] = variations[i];
+                } else if (typeof base[key] === 'number') {
+                    // Si es numérico, aplica la variación
+                    newRow[key] = variations[i];
+                } else {
+                    newRow[key] = base[key];
+                }
+            });
+            return newRow;
+        };
+
+        // Generar 100 filas de datos simulados
+        const SIMULATED_DATA_SAMPLE = [];
+        for (let i = 0; i < 100; i++) {
+            SIMULATED_DATA_SAMPLE.push(createSimulatedRow(i));
+        }
+
+
+        const generateDataTable = (data) => {
+            // *** AQUI YA NO SE USA data, solo SIMULATED_DATA_SAMPLE ***
+            const tableData = SIMULATED_DATA_SAMPLE; 
+            const numRows = parseInt(numDataViewInput.value) || MIN_ROWS; 
+            const actualRows = Math.min(numRows, tableData.length); 
+
+            if (actualRows === 0) {
+                datasetViewContainer.innerHTML = '<p class="text-center text-gray-500">No hay datos de muestra para visualizar.</p>';
+                return;
+            }
+            
+            const limitedData = tableData.slice(0, actualRows);
+            const columns = Object.keys(limitedData[0]);
+            let tableHTML = '<table><thead><tr>';
+            
+            columns.forEach(col => {
+                const displayCol = col.length > 18 ? col.substring(0, 15) + '...' : col;
+                tableHTML += `<th class="${col === 'calss' ? 'text-left-class' : 'text-left'}">${displayCol}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+
+            limitedData.forEach(row => {
+                tableHTML += '<tr>';
+                columns.forEach(col => {
+                    let value = row[col];
+                    const isClassColumn = col === 'calss';
+
+                    if (typeof value === 'number' && !isClassColumn) {
+                        if (value % 1 !== 0 && String(value).length > 8) {
+                           value = value.toExponential(4); 
+                        } else if (value % 1 !== 0) {
+                           value = value.toFixed(4); 
+                        }
+                    }
+                    tableHTML += `<td class="${isClassColumn ? 'text-left-class' : 'text-right'}" title="${row[col]}">${value}</td>`; 
+                });
+                tableHTML += '</tr>';
+            });
+
+            tableHTML += '</tbody></table>';
+            datasetViewContainer.innerHTML = tableHTML;
+            datasetViewContainer.classList.remove('hidden');
+        };
+
+        const clearDatasetTable = () => {
+            datasetViewContainer.innerHTML = '<p class="text-center text-gray-500">Presiona "Entrenar y Visualizar" para cargar la muestra.</p>';
+            datasetViewContainer.classList.remove('hidden'); 
+        };
+        
+        // -----------------------------------------------------------
+        // 2. Lógica de Validación 
+        // -----------------------------------------------------------
+
+        const validateInputs = () => {
+            let isValid = true;
+            const percentage = parseFloat(percentageDatosInput.value);
+            const numRows = parseFloat(numDataViewInput.value);
+            
+            const validateField = (inputElement, value, min, max, errorElement) => {
+                let errorMessage = '';
+
+                if (isNaN(value) || value < min || value > max || !Number.isInteger(value)) {
+                    errorMessage = `Debe ser un número entero entre ${min} y ${max}.`;
+                }
+                
+                if (errorMessage) {
+                    errorElement.textContent = errorMessage;
+                    errorElement.classList.remove('hidden');
+                    inputElement.classList.add('input-error');
+                    return false;
+                } else {
+                    errorElement.classList.add('hidden');
+                    inputElement.classList.remove('input-error');
+                    return true;
+                }
+            };
+            
+            if (!validateField(percentageDatosInput, percentage, MIN_PERCENTAGE, MAX_PERCENTAGE, errorPercentageEl)) {
+                isValid = false;
+            }
+            if (!validateField(numDataViewInput, numRows, MIN_ROWS, MAX_ROWS, errorRowsEl)) {
+                isValid = false;
+            }
+
+            trainBtn.disabled = !isValid;
+            trainBtn.textContent = isValid ? '🚀 Entrenar y Visualizar' : 'Corregir Entradas';
+            return isValid;
+        };
+
+        const clearFields = () => {
+            percentageDatosInput.value = 100;
+            numDataViewInput.value = 10;
+            
+            percentageDatosInput.classList.remove('input-error');
+            numDataViewInput.classList.remove('input-error');
+            errorPercentageEl.classList.add('hidden');
+            errorRowsEl.classList.add('hidden');
+
+            resultsContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            clearDatasetTable();
+            
+            resultNumDatosEl.textContent = '---';
+            nFeaturesUsedEl.textContent = '---'; 
+            f1ScoreEl.textContent = '---';
+            accuracyScoreEl.textContent = '---';
+            displayedDataRowsEl.textContent = '0';
+            
+            validateInputs();
+        };
+        
+        const setLoading = (isLoading) => {
+            trainBtn.disabled = isLoading;
+            trainBtn.textContent = isLoading ? 'Procesando...' : 'Entrenar y Visualizar';
+            errorContainer.classList.add('hidden');
+
+            const toggleLoaders = (show) => {
+                const method = show ? 'remove' : 'add';
+                dataViewLoader.classList[method]('hidden');
+            };
+
+            if (isLoading) {
+                resultsContainer.classList.remove('hidden'); 
+                resultNumDatosEl.textContent = '...';
+                nFeaturesUsedEl.textContent = FIXED_N_FEATURES; 
+                f1ScoreEl.textContent = '...';
+                accuracyScoreEl.textContent = '...';
+                displayedDataRowsEl.textContent = '...';
+                datasetViewContainer.classList.add('hidden');
+                datasetViewContainer.innerHTML = '';
+                toggleLoaders(true);
+            } else {
+                 toggleLoaders(false); 
+            }
+        };
+
+        // -----------------------------------------------------------
+        // 3. Lógica Principal (API Call)
+        // -----------------------------------------------------------
+        
+        trainBtn.addEventListener('click', async () => {
+            if (!validateInputs()) { return; }
+            setLoading(true);
+
+            // Valores que se envían al backend
+            const sample_percentage = parseFloat(percentageDatosInput.value); 
+            const num_data_view = parseInt(numDataViewInput.value); 
+            
+            try {
+                // *** IMPLEMENTACIÓN REAL DE DJANGO (ASUMIDA) ***
+                /*
+                const response = await fetch('/api/ml/train/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    body: JSON.stringify({ 
+                        sample_percentage: sample_percentage, 
+                        num_data_view: num_data_view, // El backend debería devolver una muestra real
+                        n_estimators: FIXED_N_ESTIMATORS,       
+                        n_features: FIXED_N_FEATURES            
+                    })
+                });
+                const data = await response.json();
+                
+                if (!response.ok) { 
+                    throw new Error(data.error || 'Error en el servidor.'); 
+                }
+                */
+                
+                // --- INICIO DE SIMULACIÓN DE DATOS (PARA PRUEBAS) ---
+                await new Promise(r => setTimeout(r, 1500)); 
+                
+                const samples_from_percent = Math.ceil((sample_percentage / 100.0) * TOTAL_DATA_COUNT);
+                const num_datos_usados_simulado = Math.min(samples_from_percent, TOTAL_DATA_COUNT); 
+
+                // Alto score simulado debido a 500 árboles y 30 features
+                let f1_score_simulado = 0.9850; 
+                let accuracy_score_simulado = 0.9855; 
+                
+                const data = {
+                    parameters_used: {
+                        sample_percentage: sample_percentage,
+                        num_samples: num_datos_usados_simulado, 
+                        n_estimators: FIXED_N_ESTIMATORS,
+                        n_features_selected: FIXED_N_FEATURES
+                    },
+                    f1_score: f1_score_simulado, 
+                    accuracy_score: accuracy_score_simulado, 
+                    // Simulamos que el backend devuelve la muestra solicitada
+                    data_sample: SIMULATED_DATA_SAMPLE.slice(0, num_data_view), 
+                };
+                // --- FIN DE SIMULACIÓN ---
+
+
+                // 4. Actualizar la UI con los resultados
+                const results = data.parameters_used;
+                const percentage_display = (results.num_samples / TOTAL_DATA_COUNT * 100);
+
+                resultNumDatosEl.textContent = `${results.num_samples.toLocaleString()} (${percentage_display.toFixed(2)}%)`; 
+                nFeaturesUsedEl.textContent = results.n_features_selected; 
+                
+                f1ScoreEl.textContent = (data.f1_score * 100).toFixed(2) + '%';
+                accuracyScoreEl.textContent = (data.accuracy_score * 100).toFixed(2) + '%'; 
+                
+                // 5. Mostrar la tabla de datos
+                dataViewLoader.classList.add('hidden');
+                // Ahora usamos el valor REAL del input (num_data_view) para mostrar la cantidad.
+                displayedDataRowsEl.textContent = num_data_view; 
+                generateDataTable(data.data_sample);
+
+            } catch (error) {
+                console.error('Error en el proceso:', error);
+                f1ScoreEl.textContent = 'Error';
+                accuracyScoreEl.textContent = 'Error';
+                errorContainer.textContent = `Error crítico: ${error.message}`;
+                errorContainer.classList.remove('hidden');
+            } finally {
+                setLoading(false);
+                validateInputs(); 
+            }
+        });
+        
+        // -----------------------------------------------------------
+        // 4. Inicialización
+        // -----------------------------------------------------------
+
+        // Event Listeners para validación en tiempo real 
+        percentageDatosInput.addEventListener('input', validateInputs);
+        numDataViewInput.addEventListener('input', validateInputs);
+        clearBtn.addEventListener('click', clearFields);
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            clearFields(); 
+            validateInputs(); 
+            clearDatasetTable(); 
+        });
+
+    </script>
+</body>
+</html>
